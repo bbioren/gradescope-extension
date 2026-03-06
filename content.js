@@ -187,8 +187,14 @@
       const groupAssignments = assignments.filter((a) => members.includes(a.name));
       if (groupAssignments.length === 0) continue;
 
-      const groupEarned = groupAssignments.reduce((s, a) => s + a.earned, 0);
-      const groupPossible = groupAssignments.reduce((s, a) => s + a.total, 0);
+      const dropN = parseInt(group.dropLowest) || 0;
+      let kept = groupAssignments;
+      if (dropN > 0 && dropN < kept.length) {
+        kept = [...kept].sort((a, b) => a.pct - b.pct).slice(dropN);
+      }
+
+      const groupEarned = kept.reduce((s, a) => s + a.earned, 0);
+      const groupPossible = kept.reduce((s, a) => s + a.total, 0);
       const groupPct = (groupEarned / groupPossible) * 100;
       weightedSum += groupPct * (weight / 100);
       totalWeight += weight;
@@ -269,6 +275,12 @@
         + '<input type="number" class="gs-avg-weight-group-pct" value="' + (group.weight || 0) + '" min="0" max="100" placeholder="%" />'
         + '<span class="gs-avg-weight-cat-pct-sign">%</span>'
         + '<button class="gs-avg-weight-group-remove">&times;</button>'
+        + '</div>'
+        + '<div class="gs-avg-weight-group-drop">'
+        + '<span class="gs-avg-weight-group-drop-label">Drop lowest:</span>'
+        + '<button class="gs-avg-weight-group-drop-btn" data-delta="-1">-</button>'
+        + '<span class="gs-avg-weight-group-drop-value">' + (group.dropLowest || 0) + '</span>'
+        + '<button class="gs-avg-weight-group-drop-btn" data-delta="1">+</button>'
         + '</div>'
         + '<div class="gs-avg-weight-group-members">' + membersHTML + '</div>'
         + '<select class="gs-avg-weight-group-select">'
@@ -511,6 +523,15 @@
           recalculate();
         });
 
+        groupEl.querySelectorAll(".gs-avg-weight-group-drop-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const delta = parseInt(btn.dataset.delta);
+            settings.weightGroups[idx].dropLowest = Math.max(0, (settings.weightGroups[idx].dropLowest || 0) + delta);
+            saveSettings();
+            recalculate();
+          });
+        });
+
         groupEl.querySelectorAll(".gs-avg-weight-member-remove").forEach((removeBtn) => {
           removeBtn.addEventListener("click", (e) => {
             const memberEl = e.target.closest(".gs-avg-weight-member");
@@ -628,14 +649,22 @@
       );
       const memberAssignments = filtered.filter((a) => members.includes(a.name));
 
-      const groupEarned = memberAssignments.reduce((s, a) => s + a.earned, 0);
-      const groupPossible = memberAssignments.reduce((s, a) => s + a.total, 0);
+      const dropN = parseInt(group.dropLowest) || 0;
+      const droppedNames = new Set();
+      if (dropN > 0 && dropN < memberAssignments.length) {
+        [...memberAssignments].sort((a, b) => a.pct - b.pct).slice(0, dropN).forEach((a) => droppedNames.add(a.name));
+      }
+      const kept = memberAssignments.filter((a) => !droppedNames.has(a.name));
+
+      const groupEarned = kept.reduce((s, a) => s + a.earned, 0);
+      const groupPossible = kept.reduce((s, a) => s + a.total, 0);
       const groupPct = groupPossible > 0 ? (groupEarned / groupPossible) * 100 : 0;
       const c = groupPossible > 0 ? getGradeColor(groupPct) : "#64748b";
       const groupName = group.name || "Unnamed group";
+      const dropNote = dropN > 0 ? ' <span class="gs-avg-group-drop-note">' + dropN + ' dropped</span>' : '';
 
       html += `<tr class="gs-avg-group-row">
-        <td><strong>${groupName}</strong> <span class="gs-avg-group-count">(${memberAssignments.length} assignment${memberAssignments.length !== 1 ? "s" : ""})</span></td>
+        <td><strong>${groupName}</strong> <span class="gs-avg-group-count">(${memberAssignments.length} assignment${memberAssignments.length !== 1 ? "s" : ""}${dropNote})</span></td>
         <td>${groupEarned.toFixed(1)} / ${groupPossible.toFixed(1)}</td>
         <td style="color:${c};font-weight:700">${groupPossible > 0 ? groupPct.toFixed(1) + "%" : "--"}</td>
         <td>${group.weight || 0}%</td>
@@ -643,8 +672,10 @@
 
       memberAssignments.sort((a, b) => b.pct - a.pct);
       memberAssignments.forEach((a) => {
-        html += `<tr class="gs-avg-member-row">
-          <td class="gs-avg-member-indent">${a.name}</td>
+        const dropped = droppedNames.has(a.name);
+        const rowClass = dropped ? "gs-avg-member-row gs-avg-row--dropped" : "gs-avg-member-row";
+        html += `<tr class="${rowClass}">
+          <td class="gs-avg-member-indent">${a.name}${dropped ? ' <span class="gs-avg-dropped-tag">dropped</span>' : ''}</td>
           <td class="gs-avg-member-cell">${a.earned} / ${a.total}</td>
           <td class="gs-avg-member-cell">${a.pct.toFixed(1)}%</td>
           <td></td>
