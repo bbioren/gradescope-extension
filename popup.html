@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        width: 340px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 16px;
+      }
+      h1 {
+        font-size: 16px;
+        font-weight: 700;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      h1 span {
+        font-size: 20px;
+      }
+      .empty {
+        color: #64748b;
+        font-size: 13px;
+        text-align: center;
+        padding: 24px 0;
+      }
+      .course {
+        background: #1e293b;
+        border-radius: 10px;
+        padding: 14px;
+        margin-bottom: 10px;
+      }
+      .course-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: #fff;
+        margin-bottom: 8px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .course-stats {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .grade-big {
+        font-size: 28px;
+        font-weight: 800;
+      }
+      .meta {
+        text-align: right;
+        font-size: 11px;
+        color: #64748b;
+        line-height: 1.5;
+      }
+      .meta strong {
+        color: #94a3b8;
+      }
+      .footer {
+        margin-top: 8px;
+        font-size: 10px;
+        color: #475569;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <h1><span>📊</span> Your Gradescope Grades</h1>
+    <div id="courses"></div>
+    <div class="footer">Visit a Gradescope course page to sync grades</div>
+    <script src="popup.js"></script>
+  </body>
+</html>

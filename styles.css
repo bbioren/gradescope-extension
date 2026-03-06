@@ -1,0 +1,320 @@
+#gs-avg-banner {
+  margin: 12px 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.gs-avg-card {
+  background: linear-gradient(135deg, #1e293b, #334155);
+  border-radius: 12px;
+  padding: 20px 24px;
+  color: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.gs-avg-main {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.gs-avg-circle {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  border: 4px solid var(--grade-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.gs-avg-pct {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.1;
+}
+
+.gs-avg-letter {
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+.gs-avg-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gs-avg-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+  color: #fff;
+}
+
+.gs-avg-row {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.gs-avg-label {
+  color: #94a3b8;
+}
+
+.gs-avg-value {
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.gs-avg-filter-summary {
+  color: #64748b;
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.gs-avg-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gs-avg-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #94a3b8;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+
+.gs-avg-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #e2e8f0;
+}
+
+.gs-avg-btn--active {
+  background: rgba(99, 102, 241, 0.3);
+  color: #818cf8;
+}
+
+/* Settings panel */
+.gs-avg-settings-panel {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 0 0 12px 12px;
+  margin-top: -8px;
+  padding: 20px 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.gs-avg-settings-section {
+  margin-bottom: 16px;
+}
+
+.gs-avg-settings-section:last-child {
+  margin-bottom: 0;
+}
+
+.gs-avg-settings-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.gs-avg-drop-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.gs-avg-drop-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #475569;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.gs-avg-drop-btn:hover {
+  background: #1e293b;
+  border-color: #818cf8;
+}
+
+.gs-avg-drop-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #e2e8f0;
+  min-width: 24px;
+  text-align: center;
+}
+
+.gs-avg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gs-avg-chip {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid #475569;
+  background: #0f172a;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.gs-avg-chip:hover {
+  border-color: #818cf8;
+  color: #c7d2fe;
+}
+
+.gs-avg-chip--active {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: #818cf8;
+  color: #c7d2fe;
+}
+
+.gs-avg-custom-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.gs-avg-custom-input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #475569;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.gs-avg-custom-input::placeholder {
+  color: #475569;
+}
+
+.gs-avg-custom-input:focus {
+  border-color: #818cf8;
+}
+
+.gs-avg-custom-add {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #818cf8;
+  background: rgba(99, 102, 241, 0.15);
+  color: #c7d2fe;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.gs-avg-custom-add:hover {
+  background: rgba(99, 102, 241, 0.3);
+}
+
+.gs-avg-custom-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Breakdown table */
+.gs-avg-breakdown {
+  background: #1e293b;
+  border-radius: 0 0 12px 12px;
+  margin-top: -8px;
+  padding: 16px 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.gs-avg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: #e2e8f0;
+}
+
+.gs-avg-table th {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid #334155;
+  color: #94a3b8;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.gs-avg-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.gs-avg-table tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.gs-avg-row--excluded td {
+  opacity: 0.4;
+}
+
+.gs-avg-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.gs-avg-status--included {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+
+.gs-avg-status--excluded {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.gs-avg-empty {
+  color: #94a3b8;
+  font-style: italic;
+  text-align: center;
+  padding: 16px;
+}
