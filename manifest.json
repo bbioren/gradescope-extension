@@ -16,6 +16,15 @@
       "js": ["content.js"],
       "css": ["styles.css"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://*.gradescope.com/",
+        "*://*.gradescope.com/account",
+        "*://*.gradescope.com/account/*"
+      ],
+      "js": ["dashboard.js"],
+      "run_at": "document_idle"
     }
   ],
   "action": {

@@ -887,11 +887,17 @@
         document.querySelector("h1")?.textContent?.trim() ||
         "Unknown Course";
 
+      const displayAvg = settings.customWeights && stats.customAvg !== null
+        ? stats.customAvg
+        : settings.equalWeight ? stats.simpleAvg : stats.weightedAvg;
+
       const data = {};
       data[`course_${courseId}`] = {
         name: courseName,
+        displayAvg: displayAvg,
         weightedAvg: stats.weightedAvg,
         simpleAvg: stats.simpleAvg,
+        customAvg: stats.customAvg,
         count: stats.count,
         totalEarned: stats.totalEarned,
         totalPossible: stats.totalPossible,

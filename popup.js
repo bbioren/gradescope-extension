@@ -37,9 +37,12 @@
   const container = document.getElementById("courses");
 
   chrome.storage.local.get(null, (items) => {
+    const archivedSet = new Set(items.__archived_courses || []);
+
     const courses = Object.entries(items)
       .filter(([key]) => key.startsWith("course_"))
-      .map(([, val]) => val)
+      .map(([key, val]) => ({ ...val, courseId: key.replace("course_", "") }))
+      .filter((c) => !archivedSet.has(c.courseId))
       .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 
     if (courses.length === 0) {
@@ -49,14 +52,15 @@
     }
 
     courses.forEach((c) => {
-      const color = getGradeColor(c.weightedAvg);
-      const letter = getLetterGrade(c.weightedAvg);
+      const avg = c.displayAvg != null ? c.displayAvg : c.weightedAvg;
+      const color = getGradeColor(avg);
+      const letter = getLetterGrade(avg);
       const div = document.createElement("div");
       div.className = "course";
       div.innerHTML = `
         <div class="course-name">${c.name}</div>
         <div class="course-stats">
-          <div class="grade-big" style="color:${color}">${c.weightedAvg.toFixed(1)}% <span style="font-size:16px;opacity:0.7">${letter}</span></div>
+          <div class="grade-big" style="color:${color}">${avg.toFixed(1)}% <span style="font-size:16px;opacity:0.7">${letter}</span></div>
           <div class="meta">
             <div><strong>${c.count}</strong> assignments</div>
             <div>${c.totalEarned.toFixed(1)} / ${c.totalPossible.toFixed(1)} pts</div>
