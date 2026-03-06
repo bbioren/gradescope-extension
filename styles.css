@@ -503,3 +503,26 @@
   color: #475569;
   font-style: italic;
 }
+
+/* Grouped breakdown */
+.gs-avg-group-row td {
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid #334155;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.gs-avg-group-count {
+  color: #64748b;
+  font-weight: 400;
+  font-size: 11px;
+}
+
+.gs-avg-member-row td {
+  border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+}
+
+.gs-avg-member-indent {
+  padding-left: 28px !important;
+  color: #94a3b8;
+}

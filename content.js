@@ -588,6 +588,11 @@
       return;
     }
 
+    if (settings.customWeights && (settings.weightGroups || []).length > 0) {
+      renderGroupedBreakdown(container, filtered);
+      return;
+    }
+
     const filteredNames = new Set(filtered.map((a) => a.name));
     const sorted = [...allAssignments].sort((a, b) => b.pct - a.pct);
 
@@ -605,6 +610,77 @@
         <td><span class="gs-avg-status gs-avg-status--${status}">${status}</span></td>
       </tr>`;
     });
+    html += "</table>";
+    container.innerHTML = html;
+  }
+
+  function renderGroupedBreakdown(container, filtered) {
+    const groups = settings.weightGroups || [];
+    const allGroupedNames = new Set();
+    groups.forEach((g) => (g.assignments || []).forEach((n) => allGroupedNames.add(n)));
+
+    let html = '<table class="gs-avg-table">';
+    html += "<tr><th>Group</th><th>Score</th><th>%</th><th>Weight</th></tr>";
+
+    groups.forEach((group) => {
+      const members = (group.assignments || []).filter((name) =>
+        filtered.some((a) => a.name === name)
+      );
+      const memberAssignments = filtered.filter((a) => members.includes(a.name));
+
+      const groupEarned = memberAssignments.reduce((s, a) => s + a.earned, 0);
+      const groupPossible = memberAssignments.reduce((s, a) => s + a.total, 0);
+      const groupPct = groupPossible > 0 ? (groupEarned / groupPossible) * 100 : 0;
+      const c = groupPossible > 0 ? getGradeColor(groupPct) : "#64748b";
+      const groupName = group.name || "Unnamed group";
+
+      html += `<tr class="gs-avg-group-row">
+        <td><strong>${groupName}</strong> <span class="gs-avg-group-count">(${memberAssignments.length} assignment${memberAssignments.length !== 1 ? "s" : ""})</span></td>
+        <td>${groupEarned.toFixed(1)} / ${groupPossible.toFixed(1)}</td>
+        <td style="color:${c};font-weight:700">${groupPossible > 0 ? groupPct.toFixed(1) + "%" : "--"}</td>
+        <td>${group.weight || 0}%</td>
+      </tr>`;
+
+      memberAssignments.sort((a, b) => b.pct - a.pct);
+      memberAssignments.forEach((a) => {
+        const ac = getGradeColor(a.pct);
+        html += `<tr class="gs-avg-member-row">
+          <td class="gs-avg-member-indent">${a.name}</td>
+          <td>${a.earned} / ${a.total}</td>
+          <td style="color:${ac};font-weight:600">${a.pct.toFixed(1)}%</td>
+          <td></td>
+        </tr>`;
+      });
+    });
+
+    const ungrouped = filtered.filter((a) => !allGroupedNames.has(a.name));
+    if (ungrouped.length > 0) {
+      const totalWeight = groups.reduce((s, g) => s + (parseFloat(g.weight) || 0), 0);
+      const remainingWeight = Math.max(0, 100 - totalWeight);
+      const ugEarned = ungrouped.reduce((s, a) => s + a.earned, 0);
+      const ugPossible = ungrouped.reduce((s, a) => s + a.total, 0);
+      const ugPct = ugPossible > 0 ? (ugEarned / ugPossible) * 100 : 0;
+      const ugColor = ugPossible > 0 ? getGradeColor(ugPct) : "#64748b";
+
+      html += `<tr class="gs-avg-group-row">
+        <td><strong>Ungrouped</strong> <span class="gs-avg-group-count">(${ungrouped.length} assignment${ungrouped.length !== 1 ? "s" : ""})</span></td>
+        <td>${ugEarned.toFixed(1)} / ${ugPossible.toFixed(1)}</td>
+        <td style="color:${ugColor};font-weight:700">${ugPossible > 0 ? ugPct.toFixed(1) + "%" : "--"}</td>
+        <td>${remainingWeight}%</td>
+      </tr>`;
+
+      ungrouped.sort((a, b) => b.pct - a.pct);
+      ungrouped.forEach((a) => {
+        const ac = getGradeColor(a.pct);
+        html += `<tr class="gs-avg-member-row">
+          <td class="gs-avg-member-indent">${a.name}</td>
+          <td>${a.earned} / ${a.total}</td>
+          <td style="color:${ac};font-weight:600">${a.pct.toFixed(1)}%</td>
+          <td></td>
+        </tr>`;
+      });
+    }
+
     html += "</table>";
     container.innerHTML = html;
   }
