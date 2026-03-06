@@ -34,8 +34,7 @@
     });
 
     const currentTerm = getCurrentTerm();
-    console.log("[GS Extension] Detected current term:", currentTerm);
-    console.log("[GS Extension] Terms found:", termOrder);
+
 
     if (currentTerm && termCourses[currentTerm]) {
       return termCourses[currentTerm];
@@ -57,7 +56,6 @@
         }
       }
 
-      console.log("[GS Extension] Closest term:", best);
       return termCourses[best] || [];
     }
 
@@ -88,7 +86,7 @@
   function syncCourses() {
     try {
       const activeCourseIds = scrapeCurrentTermCourseIds();
-      console.log("[GS Extension] Current term courses:", activeCourseIds);
+
       if (activeCourseIds.length > 0) {
         chrome.storage.local.set({
           __active_courses: activeCourseIds,
@@ -96,7 +94,7 @@
         });
       }
     } catch (e) {
-      console.error("[GS Extension] Error:", e);
+
     }
   }
 
