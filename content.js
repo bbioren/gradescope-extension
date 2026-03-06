@@ -381,6 +381,15 @@
         }
       }
     }
+    for (const c of (settings.customWhatIfs || [])) {
+      prospective.push({
+        name: c.name,
+        earned: c.earned,
+        total: c.total,
+        pct: (c.earned / c.total) * 100,
+        prospective: true,
+      });
+    }
     return prospective;
   }
 
@@ -481,6 +490,10 @@
       } else {
         allAvailable.push({ name: u.name, earned: 0, total: u.total, pct: 0, upcoming: true });
       }
+    });
+    (settings.customWhatIfs || []).forEach(function(c) {
+      if (allAvailable.some(function(a) { return a.name === c.name; })) return;
+      allAvailable.push({ name: c.name, earned: c.earned, total: c.total, pct: (c.earned / c.total) * 100, prospective: true });
     });
 
     return groups.map(function(group, i) {
@@ -584,8 +597,6 @@
             </div>`;
     }
 
-    const hasUpcoming = upcomingAssignments.length > 0;
-
     banner.innerHTML = `
       <div class="gs-avg-card">
         <div class="gs-avg-main">
@@ -621,7 +632,7 @@
         </div>
         <div class="gs-avg-actions">
           <button class="gs-avg-btn gs-avg-settings-btn" title="Filter settings">&#9881;</button>
-          ${hasUpcoming ? '<button class="gs-avg-btn gs-avg-whatif-btn" title="What If calculator">&#128300;</button>' : ''}
+          <button class="gs-avg-btn gs-avg-whatif-btn" title="What If calculator">&#128300;</button>
           <button class="gs-avg-btn gs-avg-toggle" title="Assignment breakdown">&#9660;</button>
         </div>
       </div>
@@ -691,7 +702,8 @@
       <div class="gs-avg-whatif-panel" style="display:none">
         <div class="gs-avg-settings-section">
           <label class="gs-avg-settings-label">What If Calculator</label>
-          <p class="gs-avg-whatif-hint">Enter hypothetical scores for upcoming assignments to see how they'd affect your grade.</p>
+          <p class="gs-avg-whatif-hint">Enter hypothetical scores to see how they'd affect your grade.</p>
+          ${upcomingAssignments.length > 0 ? `
           <div class="gs-avg-whatif-list">
             ${upcomingAssignments.map((a) => {
               const saved = (settings.prospectiveScores || {})[a.name];
@@ -704,6 +716,28 @@
                 </div>
               </div>`;
             }).join("")}
+          </div>
+          ` : '<p class="gs-avg-whatif-empty">No upcoming assignments detected.</p>'}
+          <div class="gs-avg-whatif-custom-section">
+            <label class="gs-avg-settings-label">Add custom assignment</label>
+            <div class="gs-avg-whatif-custom-row">
+              <input type="text" class="gs-avg-whatif-custom-name" placeholder="Assignment name" />
+              <input type="number" class="gs-avg-whatif-custom-earned" placeholder="Score" min="0" step="any" />
+              <span class="gs-avg-whatif-custom-slash">/</span>
+              <input type="number" class="gs-avg-whatif-custom-total" placeholder="Total" min="0" step="any" />
+              <button class="gs-avg-whatif-custom-add">Add</button>
+            </div>
+            ${((settings.customWhatIfs || []).length > 0) ? `
+            <div class="gs-avg-whatif-custom-list">
+              ${(settings.customWhatIfs || []).map((c, i) => `
+                <div class="gs-avg-whatif-custom-item" data-index="${i}">
+                  <span class="gs-avg-whatif-name">${c.name}</span>
+                  <span class="gs-avg-whatif-custom-score">${c.earned} / ${c.total}</span>
+                  <button class="gs-avg-whatif-custom-remove">&times;</button>
+                </div>
+              `).join("")}
+            </div>
+            ` : ''}
           </div>
           <button class="gs-avg-whatif-clear">Clear all</button>
         </div>
@@ -762,12 +796,15 @@
       settingsBtn.classList.toggle("gs-avg-btn--active", settingsPanelOpen);
     });
 
-    if (whatIfBtn && whatIfPanel) {
+    if (whatIfBtn) {
       whatIfBtn.addEventListener("click", () => {
         whatIfOpen = whatIfPanel.style.display === "none";
         whatIfPanel.style.display = whatIfOpen ? "block" : "none";
         whatIfBtn.classList.toggle("gs-avg-btn--active", whatIfOpen);
       });
+    }
+
+    if (whatIfPanel) {
 
       whatIfPanel.querySelectorAll(".gs-avg-whatif-input").forEach((input) => {
         const row = input.closest(".gs-avg-whatif-row");
@@ -780,10 +817,40 @@
         });
       });
 
+      const customAddBtn = whatIfPanel.querySelector(".gs-avg-whatif-custom-add");
+      if (customAddBtn) {
+        customAddBtn.addEventListener("click", () => {
+          const nameInput = whatIfPanel.querySelector(".gs-avg-whatif-custom-name");
+          const earnedInput = whatIfPanel.querySelector(".gs-avg-whatif-custom-earned");
+          const totalInput = whatIfPanel.querySelector(".gs-avg-whatif-custom-total");
+          const name = nameInput.value.trim();
+          const earned = parseFloat(earnedInput.value);
+          const total = parseFloat(totalInput.value);
+          if (!name || isNaN(earned) || isNaN(total) || total <= 0) return;
+          if (!settings.customWhatIfs) settings.customWhatIfs = [];
+          settings.customWhatIfs.push({ name, earned, total });
+          saveSettings();
+          recalculate();
+        });
+      }
+
+      whatIfPanel.querySelectorAll(".gs-avg-whatif-custom-remove").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const item = btn.closest(".gs-avg-whatif-custom-item");
+          const idx = parseInt(item.dataset.index);
+          if (settings.customWhatIfs) {
+            settings.customWhatIfs.splice(idx, 1);
+            saveSettings();
+            recalculate();
+          }
+        });
+      });
+
       const clearBtn = whatIfPanel.querySelector(".gs-avg-whatif-clear");
       if (clearBtn) {
         clearBtn.addEventListener("click", () => {
           settings.prospectiveScores = {};
+          settings.customWhatIfs = [];
           saveSettings();
           recalculate();
         });
