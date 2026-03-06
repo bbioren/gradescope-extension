@@ -37,12 +37,13 @@
   const container = document.getElementById("courses");
 
   chrome.storage.local.get(null, (items) => {
-    const archivedSet = new Set(items.__archived_courses || []);
+    const activeCourses = items.__active_courses;
+    const activeSet = activeCourses ? new Set(activeCourses) : null;
 
     const courses = Object.entries(items)
       .filter(([key]) => key.startsWith("course_"))
       .map(([key, val]) => ({ ...val, courseId: key.replace("course_", "") }))
-      .filter((c) => !archivedSet.has(c.courseId))
+      .filter((c) => activeSet === null || activeSet.has(c.courseId))
       .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 
     if (courses.length === 0) {
