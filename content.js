@@ -18,11 +18,14 @@
     };
   }
   let allAssignments = [];
+  let upcomingAssignments = [];
   let pendingTotalLookups = [];
-  let settings = { dropLowest: 0, excludePatterns: [], equalWeight: false, customWeights: false, weightGroups: [] };
+  let pendingUpcomingLookups = [];
+  let settings = { dropLowest: 0, excludePatterns: [], equalWeight: false, customWeights: false, weightGroups: [], prospectiveScores: {} };
   let destroyed = false;
   let settingsPanelOpen = false;
   let breakdownOpen = false;
+  let whatIfOpen = false;
 
   function killIfInvalid() {
     if (destroyed) return true;
@@ -274,6 +277,45 @@
     return assignments;
   }
 
+  function scrapeUpcoming() {
+    const upcoming = [];
+    const gradedNames = new Set(allAssignments.map((a) => a.name));
+    const rows = document.querySelectorAll(
+      "table.table-assignments tbody tr, table tbody tr"
+    );
+
+    rows.forEach((row) => {
+      var nameEl = row.querySelector("th a, td a, a.table--primaryLink");
+      if (!nameEl) {
+        nameEl = row.querySelector("th .table--primaryLink, th button, th span:first-child");
+      }
+      if (!nameEl) {
+        var firstTh = row.querySelector("th");
+        if (firstTh && firstTh.textContent.trim()) nameEl = firstTh;
+      }
+      if (!nameEl) return;
+
+      const name = nameEl.textContent.trim();
+      if (!name || gradedNames.has(name)) return;
+
+      const scoreEl = row.querySelector(
+        "div.submissionStatus--score, .submissionStatus--score"
+      );
+      if (scoreEl && parseScore(scoreEl.textContent.trim())) return;
+
+      if (isPastDue(row)) return;
+
+      const total = getTotalPoints(row);
+      if (total && total > 0) {
+        upcoming.push({ name, total });
+      } else {
+        pendingUpcomingLookups.push({ name, row, nameEl });
+      }
+    });
+
+    return upcoming;
+  }
+
   function applyFilters(assignments) {
     let filtered = [...assignments];
 
@@ -320,6 +362,33 @@
       totalEarned,
       totalPossible,
     };
+  }
+
+  function getProspectiveAssignments() {
+    const scores = settings.prospectiveScores || {};
+    const prospective = [];
+    for (const a of upcomingAssignments) {
+      if (scores[a.name] != null && scores[a.name] !== "") {
+        const earned = parseFloat(scores[a.name]);
+        if (!isNaN(earned)) {
+          prospective.push({
+            name: a.name,
+            earned: earned,
+            total: a.total,
+            pct: (earned / a.total) * 100,
+            prospective: true,
+          });
+        }
+      }
+    }
+    return prospective;
+  }
+
+  function computeProjectedStats(filtered) {
+    const prospective = getProspectiveAssignments();
+    if (prospective.length === 0) return null;
+    const combined = [...filtered, ...prospective];
+    return computeStats(combined);
   }
 
   function computeCustomWeightedAvg(assignments) {
@@ -474,6 +543,24 @@
       ? `<span class="gs-avg-filter-summary">(${filterSummaryParts.join("; ")})</span>`
       : "";
 
+    const projectedStats = computeProjectedStats(filtered);
+    const hasProspective = getProspectiveAssignments().length > 0;
+    let projectedRow = "";
+    if (projectedStats && hasProspective) {
+      const projAvg = settings.customWeights && projectedStats.customAvg !== null
+        ? projectedStats.customAvg
+        : settings.equalWeight ? projectedStats.simpleAvg : projectedStats.weightedAvg;
+      const projColor = getGradeColor(projAvg);
+      const projLetter = getLetterGrade(projAvg);
+      projectedRow = `
+            <div class="gs-avg-row gs-avg-row--projected">
+              <span class="gs-avg-label">Projected avg:</span>
+              <span class="gs-avg-value" style="color:${projColor}">${projAvg.toFixed(2)}% (${projLetter})</span>
+            </div>`;
+    }
+
+    const hasUpcoming = upcomingAssignments.length > 0;
+
     banner.innerHTML = `
       <div class="gs-avg-card">
         <div class="gs-avg-main">
@@ -496,7 +583,7 @@
               <span class="gs-avg-label">Custom weighted avg:</span>
               <span class="gs-avg-value" style="color:${color}">${stats.customAvg.toFixed(2)}%</span>
             </div>
-            ` : ""}
+            ` : ""}${projectedRow}
             <div class="gs-avg-row">
               <span class="gs-avg-label">Total points:</span>
               <span class="gs-avg-value">${stats.totalEarned.toFixed(1)} / ${stats.totalPossible.toFixed(1)}</span>
@@ -509,6 +596,7 @@
         </div>
         <div class="gs-avg-actions">
           <button class="gs-avg-btn gs-avg-settings-btn" title="Filter settings">&#9881;</button>
+          ${hasUpcoming ? '<button class="gs-avg-btn gs-avg-whatif-btn" title="What If calculator">&#128300;</button>' : ''}
           <button class="gs-avg-btn gs-avg-toggle" title="Assignment breakdown">&#9660;</button>
         </div>
       </div>
@@ -575,6 +663,26 @@
           </div>
         </div>
       </div>
+      <div class="gs-avg-whatif-panel" style="display:none">
+        <div class="gs-avg-settings-section">
+          <label class="gs-avg-settings-label">What If Calculator</label>
+          <p class="gs-avg-whatif-hint">Enter hypothetical scores for upcoming assignments to see how they'd affect your grade.</p>
+          <div class="gs-avg-whatif-list">
+            ${upcomingAssignments.map((a) => {
+              const saved = (settings.prospectiveScores || {})[a.name];
+              const val = saved != null && saved !== "" ? saved : "";
+              return `<div class="gs-avg-whatif-row" data-name="${a.name.replace(/"/g, '&quot;')}">
+                <span class="gs-avg-whatif-name">${a.name}</span>
+                <div class="gs-avg-whatif-input-wrap">
+                  <input type="number" class="gs-avg-whatif-input" value="${val}" min="0" max="${a.total}" step="any" placeholder="0" />
+                  <span class="gs-avg-whatif-total">/ ${a.total}</span>
+                </div>
+              </div>`;
+            }).join("")}
+          </div>
+          <button class="gs-avg-whatif-clear">Clear all</button>
+        </div>
+      </div>
       <div class="gs-avg-breakdown" style="display:none"></div>
     `;
 
@@ -599,10 +707,16 @@
     const breakdown = banner.querySelector(".gs-avg-breakdown");
     const settingsBtn = banner.querySelector(".gs-avg-settings-btn");
     const settingsPanel = banner.querySelector(".gs-avg-settings-panel");
+    const whatIfBtn = banner.querySelector(".gs-avg-whatif-btn");
+    const whatIfPanel = banner.querySelector(".gs-avg-whatif-panel");
 
     if (settingsPanelOpen) {
       settingsPanel.style.display = "block";
       settingsBtn.classList.add("gs-avg-btn--active");
+    }
+    if (whatIfOpen && whatIfPanel) {
+      whatIfPanel.style.display = "block";
+      if (whatIfBtn) whatIfBtn.classList.add("gs-avg-btn--active");
     }
     if (breakdownOpen) {
       breakdown.style.display = "block";
@@ -622,6 +736,34 @@
       settingsPanel.style.display = settingsPanelOpen ? "block" : "none";
       settingsBtn.classList.toggle("gs-avg-btn--active", settingsPanelOpen);
     });
+
+    if (whatIfBtn && whatIfPanel) {
+      whatIfBtn.addEventListener("click", () => {
+        whatIfOpen = whatIfPanel.style.display === "none";
+        whatIfPanel.style.display = whatIfOpen ? "block" : "none";
+        whatIfBtn.classList.toggle("gs-avg-btn--active", whatIfOpen);
+      });
+
+      whatIfPanel.querySelectorAll(".gs-avg-whatif-input").forEach((input) => {
+        const row = input.closest(".gs-avg-whatif-row");
+        const name = row.dataset.name;
+        input.addEventListener("input", () => {
+          if (!settings.prospectiveScores) settings.prospectiveScores = {};
+          settings.prospectiveScores[name] = input.value;
+          saveSettings();
+          recalculate();
+        });
+      });
+
+      const clearBtn = whatIfPanel.querySelector(".gs-avg-whatif-clear");
+      if (clearBtn) {
+        clearBtn.addEventListener("click", () => {
+          settings.prospectiveScores = {};
+          saveSettings();
+          recalculate();
+        });
+      }
+    }
 
     banner.querySelector("#gs-avg-equal-btn").addEventListener("click", () => {
       settings.equalWeight = !settings.equalWeight;
@@ -1025,6 +1167,51 @@
     return added;
   }
 
+  async function resolveUpcomingLookups() {
+    if (pendingUpcomingLookups.length === 0) return false;
+    const lookups = pendingUpcomingLookups.splice(0);
+    let added = false;
+
+    var gradedTotals = allAssignments.filter(function(a) { return !a.unsubmitted && a.total > 0; });
+    var fallbackTotal = null;
+    if (gradedTotals.length > 0) {
+      var totalsMap = {};
+      gradedTotals.forEach(function(a) {
+        totalsMap[a.total] = (totalsMap[a.total] || 0) + 1;
+      });
+      var maxCount = 0;
+      Object.keys(totalsMap).forEach(function(t) {
+        if (totalsMap[t] > maxCount) {
+          maxCount = totalsMap[t];
+          fallbackTotal = parseFloat(t);
+        }
+      });
+    }
+
+    for (const { name, nameEl } of lookups) {
+      const exists = upcomingAssignments.some((a) => a.name === name);
+      if (exists) continue;
+
+      const href = nameEl.href || nameEl.closest("a")?.href;
+      let total = null;
+
+      if (href) {
+        total = await fetchTotalPoints(href);
+      }
+
+      if ((!total || total <= 0) && fallbackTotal) {
+        total = fallbackTotal;
+      }
+
+      if (total && total > 0) {
+        upcomingAssignments.push({ name, total });
+        added = true;
+      }
+    }
+
+    return added;
+  }
+
   const recalculate = safeRun(function () {
     if (destroyed) return;
     const filtered = applyFilters(allAssignments);
@@ -1035,10 +1222,15 @@
   const init = safeRun(function () {
     if (destroyed) return;
     pendingTotalLookups = [];
+    pendingUpcomingLookups = [];
     allAssignments = scrapeGrades();
     loadSettings(() => {
+      upcomingAssignments = scrapeUpcoming();
       recalculate();
       resolvePendingLookups().then((added) => {
+        if (added && !destroyed) recalculate();
+      });
+      resolveUpcomingLookups().then((added) => {
         if (added && !destroyed) recalculate();
       });
     });
