@@ -643,11 +643,10 @@
 
       memberAssignments.sort((a, b) => b.pct - a.pct);
       memberAssignments.forEach((a) => {
-        const ac = getGradeColor(a.pct);
         html += `<tr class="gs-avg-member-row">
           <td class="gs-avg-member-indent">${a.name}</td>
-          <td>${a.earned} / ${a.total}</td>
-          <td style="color:${ac};font-weight:600">${a.pct.toFixed(1)}%</td>
+          <td class="gs-avg-member-cell">${a.earned} / ${a.total}</td>
+          <td class="gs-avg-member-cell">${a.pct.toFixed(1)}%</td>
           <td></td>
         </tr>`;
       });
@@ -671,11 +670,10 @@
 
       ungrouped.sort((a, b) => b.pct - a.pct);
       ungrouped.forEach((a) => {
-        const ac = getGradeColor(a.pct);
         html += `<tr class="gs-avg-member-row">
           <td class="gs-avg-member-indent">${a.name}</td>
-          <td>${a.earned} / ${a.total}</td>
-          <td style="color:${ac};font-weight:600">${a.pct.toFixed(1)}%</td>
+          <td class="gs-avg-member-cell">${a.earned} / ${a.total}</td>
+          <td class="gs-avg-member-cell">${a.pct.toFixed(1)}%</td>
           <td></td>
         </tr>`;
       });
