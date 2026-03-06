@@ -38,7 +38,7 @@
 
   chrome.storage.local.get(null, (items) => {
     const activeCourses = items.__active_courses;
-    const activeSet = activeCourses ? new Set(activeCourses) : null;
+    const activeSet = activeCourses && activeCourses.length > 0 ? new Set(activeCourses) : null;
 
     const courses = Object.entries(items)
       .filter(([key]) => key.startsWith("course_"))
