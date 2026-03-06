@@ -471,6 +471,18 @@
     const groups = settings.weightGroups || [];
     if (groups.length === 0) return "";
 
+    const prospective = getProspectiveAssignments();
+    const allAvailable = [...filtered];
+    upcomingAssignments.forEach(function(u) {
+      if (allAvailable.some(function(a) { return a.name === u.name; })) return;
+      var p = prospective.find(function(a) { return a.name === u.name; });
+      if (p) {
+        allAvailable.push(p);
+      } else {
+        allAvailable.push({ name: u.name, earned: 0, total: u.total, pct: 0, upcoming: true });
+      }
+    });
+
     return groups.map(function(group, i) {
       var assignedNames = {};
       (group.assignments || []).forEach(function(n) { assignedNames[n] = true; });
@@ -478,17 +490,30 @@
       groups.forEach(function(g, gi) {
         if (gi !== i) (g.assignments || []).forEach(function(n) { otherNames[n] = true; });
       });
-      var available = filtered.filter(function(a) { return !assignedNames[a.name] && !otherNames[a.name]; });
+      var available = allAvailable.filter(function(a) { return !assignedNames[a.name] && !otherNames[a.name]; });
 
       var membersHTML = (group.assignments || []).map(function(name) {
         var assignmentObj = filtered.find(function(a) { return a.name === name; });
-        var unsubLabel = (assignmentObj && assignmentObj.unsubmitted) ? ' <span class="gs-avg-unsubmitted-chip">[unsubmitted]</span>' : '';
+        var prospectiveObj = prospective.find(function(a) { return a.name === name; });
+        var upcomingObj = upcomingAssignments.find(function(a) { return a.name === name; });
+        var tag = '';
+        if (assignmentObj && assignmentObj.unsubmitted) {
+          tag = ' <span class="gs-avg-unsubmitted-chip">[unsubmitted]</span>';
+        } else if (prospectiveObj) {
+          tag = ' <span class="gs-avg-whatif-chip">[what-if]</span>';
+        } else if (upcomingObj && !assignmentObj) {
+          tag = ' <span class="gs-avg-upcoming-chip">[upcoming]</span>';
+        }
         return '<span class="gs-avg-weight-member" data-name="' + name.replace(/"/g, '&quot;') + '">'
-          + name + unsubLabel + ' <button class="gs-avg-weight-member-remove">&times;</button></span>';
+          + name + tag + ' <button class="gs-avg-weight-member-remove">&times;</button></span>';
       }).join("");
 
       var optionsHTML = available.map(function(a) {
-        var label = a.name + ' (' + a.earned + '/' + a.total + ')' + (a.unsubmitted ? ' [unsubmitted]' : '');
+        var tag = '';
+        if (a.unsubmitted) tag = ' [unsubmitted]';
+        else if (a.prospective) tag = ' [what-if]';
+        else if (a.upcoming) tag = ' [upcoming]';
+        var label = a.name + ' (' + a.earned + '/' + a.total + ')' + tag;
         return '<option value="' + a.name.replace(/"/g, '&quot;') + '">' + label + '</option>';
       }).join("");
 

@@ -713,3 +713,19 @@
   padding-top: 4px;
   margin-top: 2px;
 }
+
+.gs-avg-whatif-chip {
+  font-size: 10px;
+  color: #818cf8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.gs-avg-upcoming-chip {
+  font-size: 10px;
+  color: #64748b;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
