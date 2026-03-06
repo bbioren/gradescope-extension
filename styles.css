@@ -313,6 +313,26 @@
   color: #f87171;
 }
 
+.gs-avg-status--unsubmitted {
+  background: rgba(249, 115, 22, 0.15);
+  color: #fb923c;
+}
+
+.gs-avg-unsubmitted-tag {
+  font-size: 10px;
+  color: #fb923c;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-left: 6px;
+}
+
+.gs-avg-unsubmitted-chip {
+  font-size: 10px;
+  color: #fb923c;
+  font-weight: 600;
+}
+
 .gs-avg-empty {
   color: #94a3b8;
   font-style: italic;

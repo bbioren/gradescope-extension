@@ -18,6 +18,7 @@
     };
   }
   let allAssignments = [];
+  let pendingTotalLookups = [];
   let settings = { dropLowest: 0, excludePatterns: [], equalWeight: false, customWeights: false, weightGroups: [] };
   let destroyed = false;
   let settingsPanelOpen = false;
@@ -92,6 +93,110 @@
     return { earned, total };
   }
 
+  function parseDateText(text) {
+    if (!text) return null;
+    var cleaned = text.replace(/\s+/g, " ").trim();
+    var dt = new Date(cleaned);
+    if (!isNaN(dt.getTime())) return dt;
+    var match = cleaned.match(
+      /(\w{3,})\s+(\d{1,2}),?\s*(\d{4})?\s*(?:at\s+)?(\d{1,2}):(\d{2})\s*(am|pm)?/i
+    );
+    if (match) {
+      var year = match[3] || new Date().getFullYear();
+      var str = match[1] + " " + match[2] + " " + year + " " + match[4] + ":" + match[5] + " " + (match[6] || "");
+      dt = new Date(str);
+      if (!isNaN(dt.getTime())) return dt;
+    }
+    return null;
+  }
+
+  function isPastDue(row) {
+    var now = new Date();
+    var lateDue = null;
+    var due = null;
+
+    var timeEls = row.querySelectorAll("time[datetime]");
+    timeEls.forEach(function(el) {
+      var dt = new Date(el.getAttribute("datetime"));
+      if (isNaN(dt.getTime())) return;
+      var context = (el.closest("td") || el.parentElement).textContent.toLowerCase();
+      if (context.includes("late")) {
+        lateDue = dt;
+      } else if (!due) {
+        due = dt;
+      }
+    });
+
+    if (!lateDue && !due) {
+      var cells = row.querySelectorAll("td");
+      cells.forEach(function(cell) {
+        var text = cell.textContent.trim();
+        if (!text || text.length > 200) return;
+        var lower = text.toLowerCase();
+        if (lower.includes("no submission") || lower.includes("submitted")) return;
+        var dt = parseDateText(text);
+        if (!dt) return;
+        if (lower.includes("late")) {
+          if (!lateDue || dt > lateDue) lateDue = dt;
+        } else {
+          if (!due || dt > due) due = dt;
+        }
+      });
+    }
+
+    var deadline = lateDue || due;
+    return deadline ? now > deadline : false;
+  }
+
+  function isNoSubmission(row) {
+    var statusEl = row.querySelector(
+      ".submissionStatus--text, .submissionStatus--warning"
+    );
+    if (statusEl) {
+      var text = statusEl.textContent.trim().toLowerCase();
+      if (text.includes("no submission") || text.includes("missing")) return true;
+    }
+
+    var submissionCell = row.querySelector("td.submissionStatus, .submissionStatus");
+    if (submissionCell) {
+      var divs = submissionCell.querySelectorAll("div");
+      for (var i = 0; i < divs.length; i++) {
+        var dt = divs[i].textContent.trim().toLowerCase();
+        if (dt.includes("no submission") || dt.includes("missing")) return true;
+      }
+      var cellText = submissionCell.textContent.trim().toLowerCase();
+      if (cellText === "no submission" || cellText === "missing" || cellText === "") return true;
+    }
+
+    var allText = row.textContent.toLowerCase();
+    if (allText.includes("no submission")) return true;
+
+    return false;
+  }
+
+  function getTotalPoints(row) {
+    var cells = row.querySelectorAll("td, th");
+    for (var i = 0; i < cells.length; i++) {
+      var text = cells[i].textContent.trim();
+      var match = text.match(/^\/\s*([\d.]+)$/);
+      if (match) return parseFloat(match[1]);
+    }
+    for (var j = 0; j < cells.length; j++) {
+      var text2 = cells[j].textContent.trim();
+      var match2 = text2.match(/\b(\d+(?:\.\d+)?)\s*(?:pts?|points?)\b/i);
+      if (match2) return parseFloat(match2[1]);
+    }
+
+    var link = row.querySelector("th a, td a, a.table--primaryLink");
+    if (link) {
+      var pointsAttr = link.getAttribute("data-total-points") ||
+        row.getAttribute("data-total-points");
+      if (pointsAttr) return parseFloat(pointsAttr);
+    }
+
+    return null;
+  }
+
   function scrapeGrades() {
     const assignments = [];
     const rows = document.querySelectorAll(
@@ -99,24 +204,66 @@
     );
 
     rows.forEach((row) => {
-      const nameEl = row.querySelector("th a, td a, a.table--primaryLink");
-      const scoreEl = row.querySelector(
-        "div.submissionStatus--score, .submissionStatus--score, td.submissionStatus div"
-      );
-
-      if (!nameEl || !scoreEl) return;
+      var nameEl = row.querySelector("th a, td a, a.table--primaryLink");
+      if (!nameEl) {
+        nameEl = row.querySelector("th .table--primaryLink, th button, th span:first-child");
+      }
+      if (!nameEl) {
+        var firstTh = row.querySelector("th");
+        if (firstTh && firstTh.textContent.trim()) nameEl = firstTh;
+      }
+      if (!nameEl) return;
 
       const name = nameEl.textContent.trim();
-      const scoreText = scoreEl.textContent.trim();
-      const score = parseScore(scoreText);
+      if (!name) return;
 
-      if (score) {
+      const scoreEl = row.querySelector(
+        "div.submissionStatus--score, .submissionStatus--score"
+      );
+
+      if (scoreEl) {
+        const scoreText = scoreEl.textContent.trim();
+        const score = parseScore(scoreText);
+        if (score) {
+          assignments.push({
+            name,
+            earned: score.earned,
+            total: score.total,
+            pct: (score.earned / score.total) * 100,
+          });
+          return;
+        }
+      }
+
+      var allDivs = row.querySelectorAll("td div, td span");
+      for (var k = 0; k < allDivs.length; k++) {
+        var divText = allDivs[k].textContent.trim();
+        var score2 = parseScore(divText);
+        if (score2) {
+          assignments.push({
+            name,
+            earned: score2.earned,
+            total: score2.total,
+            pct: (score2.earned / score2.total) * 100,
+          });
+          return;
+        }
+      }
+
+      if (!isNoSubmission(row)) return;
+      if (!isPastDue(row)) return;
+
+      const total = getTotalPoints(row);
+      if (total && total > 0) {
         assignments.push({
           name,
-          earned: score.earned,
-          total: score.total,
-          pct: (score.earned / score.total) * 100,
+          earned: 0,
+          total: total,
+          pct: 0,
+          unsubmitted: true,
         });
+      } else {
+        pendingTotalLookups.push({ name, row, nameEl });
       }
     });
 
@@ -261,12 +408,15 @@
       var available = filtered.filter(function(a) { return !assignedNames[a.name] && !otherNames[a.name]; });
 
       var membersHTML = (group.assignments || []).map(function(name) {
+        var assignmentObj = filtered.find(function(a) { return a.name === name; });
+        var unsubLabel = (assignmentObj && assignmentObj.unsubmitted) ? ' <span class="gs-avg-unsubmitted-chip">[unsubmitted]</span>' : '';
         return '<span class="gs-avg-weight-member" data-name="' + name.replace(/"/g, '&quot;') + '">'
-          + name + ' <button class="gs-avg-weight-member-remove">&times;</button></span>';
+          + name + unsubLabel + ' <button class="gs-avg-weight-member-remove">&times;</button></span>';
       }).join("");
 
       var optionsHTML = available.map(function(a) {
-        return '<option value="' + a.name.replace(/"/g, '&quot;') + '">' + a.name + ' (' + a.earned + '/' + a.total + ')</option>';
+        var label = a.name + ' (' + a.earned + '/' + a.total + ')' + (a.unsubmitted ? ' [unsubmitted]' : '');
+        return '<option value="' + a.name.replace(/"/g, '&quot;') + '">' + label + '</option>';
       }).join("");
 
       return '<div class="gs-avg-weight-group" data-group-index="' + i + '">'
@@ -623,12 +773,18 @@
       const included = filteredNames.has(a.name);
       const c = getGradeColor(a.pct);
       const rowClass = included ? "" : 'class="gs-avg-row--excluded"';
-      const status = included ? "included" : "excluded";
+      let status = included ? "included" : "excluded";
+      let statusClass = included ? "gs-avg-status--included" : "gs-avg-status--excluded";
+      if (a.unsubmitted && included) {
+        status = "0 (unsubmitted)";
+        statusClass = "gs-avg-status--unsubmitted";
+      }
+      const nameDisplay = a.name + (a.unsubmitted ? ' <span class="gs-avg-unsubmitted-tag">unsubmitted</span>' : '');
       html += `<tr ${rowClass}>
-        <td>${a.name}</td>
+        <td>${nameDisplay}</td>
         <td>${a.earned} / ${a.total}</td>
         <td style="color:${included ? c : "#64748b"};font-weight:600">${a.pct.toFixed(1)}%</td>
-        <td><span class="gs-avg-status gs-avg-status--${status}">${status}</span></td>
+        <td><span class="gs-avg-status ${statusClass}">${status}</span></td>
       </tr>`;
     });
     html += "</table>";
@@ -674,8 +830,10 @@
       memberAssignments.forEach((a) => {
         const dropped = droppedNames.has(a.name);
         const rowClass = dropped ? "gs-avg-member-row gs-avg-row--dropped" : "gs-avg-member-row";
+        const tag = dropped ? ' <span class="gs-avg-dropped-tag">dropped</span>' :
+          a.unsubmitted ? ' <span class="gs-avg-unsubmitted-tag">unsubmitted</span>' : '';
         html += `<tr class="${rowClass}">
-          <td class="gs-avg-member-indent">${a.name}${dropped ? ' <span class="gs-avg-dropped-tag">dropped</span>' : ''}</td>
+          <td class="gs-avg-member-indent">${a.name}${tag}</td>
           <td class="gs-avg-member-cell">${a.earned} / ${a.total}</td>
           <td class="gs-avg-member-cell">${a.pct.toFixed(1)}%</td>
           <td></td>
@@ -701,8 +859,9 @@
 
       ungrouped.sort((a, b) => b.pct - a.pct);
       ungrouped.forEach((a) => {
+        const unsubTag = a.unsubmitted ? ' <span class="gs-avg-unsubmitted-tag">unsubmitted</span>' : '';
         html += `<tr class="gs-avg-member-row">
-          <td class="gs-avg-member-indent">${a.name}</td>
+          <td class="gs-avg-member-indent">${a.name}${unsubTag}</td>
           <td class="gs-avg-member-cell">${a.earned} / ${a.total}</td>
           <td class="gs-avg-member-cell">${a.pct.toFixed(1)}%</td>
           <td></td>
@@ -742,6 +901,120 @@
     }
   }
 
+  async function fetchTotalPoints(url) {
+    try {
+      const resp = await fetch(url, { credentials: "same-origin", redirect: "follow" });
+      if (!resp.ok) return null;
+      const html = await resp.text();
+      const doc = new DOMParser().parseFromString(html, "text/html");
+
+      var selectors = [
+        ".assignmentOutline--totalPoints",
+        ".totalPoints",
+        "[class*='totalPoints']",
+        "[class*='maxPoints']",
+        ".question-title .points",
+        ".assignmentHeader--totalPoints",
+        ".assignment-total-points"
+      ];
+      for (var s = 0; s < selectors.length; s++) {
+        var el = doc.querySelector(selectors[s]);
+        if (el) {
+          var m = el.textContent.match(/([\d.]+)\s*(?:pts?|points?)?/i);
+          if (m) return parseFloat(m[1]);
+        }
+      }
+
+      var scoreSelectors = [
+        ".submissionOutline--score",
+        ".questionOutline--score",
+        "[class*='questionScore']",
+        "[class*='outOf']",
+        ".question-title"
+      ];
+      for (var q = 0; q < scoreSelectors.length; q++) {
+        var els = doc.querySelectorAll(scoreSelectors[q]);
+        for (var r = 0; r < els.length; r++) {
+          var m2 = els[r].textContent.match(/\/\s*([\d.]+)/);
+          if (m2) return parseFloat(m2[1]);
+        }
+      }
+
+      var allEls = doc.querySelectorAll("div, span, p, td, th");
+      var maxTotal = 0;
+      for (var t = 0; t < allEls.length; t++) {
+        var txt = allEls[t].textContent.trim();
+        if (txt.length > 100) continue;
+        var slashMatch = txt.match(/^\/\s*([\d.]+)$/);
+        if (slashMatch) {
+          var val = parseFloat(slashMatch[1]);
+          if (val > maxTotal) maxTotal = val;
+        }
+        var ptsMatch = txt.match(/\b([\d.]+)\s*(?:pts?|points?)\b/i);
+        if (ptsMatch) {
+          var val2 = parseFloat(ptsMatch[1]);
+          if (val2 > maxTotal) maxTotal = val2;
+        }
+      }
+      if (maxTotal > 0) return maxTotal;
+
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function resolvePendingLookups() {
+    if (pendingTotalLookups.length === 0) return false;
+    const lookups = pendingTotalLookups.splice(0);
+    let added = false;
+
+    var gradedTotals = allAssignments.filter(function(a) { return !a.unsubmitted && a.total > 0; });
+    var fallbackTotal = null;
+    if (gradedTotals.length > 0) {
+      var totalsMap = {};
+      gradedTotals.forEach(function(a) {
+        totalsMap[a.total] = (totalsMap[a.total] || 0) + 1;
+      });
+      var maxCount = 0;
+      Object.keys(totalsMap).forEach(function(t) {
+        if (totalsMap[t] > maxCount) {
+          maxCount = totalsMap[t];
+          fallbackTotal = parseFloat(t);
+        }
+      });
+    }
+
+    for (const { name, nameEl } of lookups) {
+      const href = nameEl.href || nameEl.closest("a")?.href;
+      let total = null;
+
+      if (href) {
+        total = await fetchTotalPoints(href);
+      }
+
+      if ((!total || total <= 0) && fallbackTotal) {
+        total = fallbackTotal;
+      }
+
+      if (total && total > 0) {
+        const exists = allAssignments.some((a) => a.name === name);
+        if (!exists) {
+          allAssignments.push({
+            name,
+            earned: 0,
+            total: total,
+            pct: 0,
+            unsubmitted: true,
+          });
+          added = true;
+        }
+      }
+    }
+
+    return added;
+  }
+
   const recalculate = safeRun(function () {
     if (destroyed) return;
     const filtered = applyFilters(allAssignments);
@@ -751,9 +1024,13 @@
 
   const init = safeRun(function () {
     if (destroyed) return;
+    pendingTotalLookups = [];
     allAssignments = scrapeGrades();
     loadSettings(() => {
       recalculate();
+      resolvePendingLookups().then((added) => {
+        if (added && !destroyed) recalculate();
+      });
     });
   });
 
