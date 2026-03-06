@@ -113,39 +113,43 @@
   function isPastDue(row) {
     var now = new Date();
     var lateDue = null;
-    var due = null;
+    var dates = [];
 
     var timeEls = row.querySelectorAll("time[datetime]");
     timeEls.forEach(function(el) {
       var dt = new Date(el.getAttribute("datetime"));
       if (isNaN(dt.getTime())) return;
       var context = (el.closest("td") || el.parentElement).textContent.toLowerCase();
-      if (context.includes("late")) {
+      if (context.includes("late due") || context.includes("late submission")) {
         lateDue = dt;
-      } else if (!due) {
-        due = dt;
+      } else {
+        dates.push(dt);
       }
     });
 
-    if (!lateDue && !due) {
+    if (dates.length === 0 && !lateDue) {
       var cells = row.querySelectorAll("td");
       cells.forEach(function(cell) {
         var text = cell.textContent.trim();
         if (!text || text.length > 200) return;
         var lower = text.toLowerCase();
         if (lower.includes("no submission") || lower.includes("submitted")) return;
+        if (lower.includes("left") || lower.includes("ago")) return;
         var dt = parseDateText(text);
         if (!dt) return;
-        if (lower.includes("late")) {
+        if (lower.includes("late due") || lower.includes("late submission")) {
           if (!lateDue || dt > lateDue) lateDue = dt;
         } else {
-          if (!due || dt > due) due = dt;
+          dates.push(dt);
         }
       });
     }
 
-    var deadline = lateDue || due;
-    return deadline ? now > deadline : false;
+    if (lateDue) return now > lateDue;
+
+    if (dates.length === 0) return false;
+    var lastDate = dates.reduce(function(a, b) { return a > b ? a : b; });
+    return now > lastDate;
   }
 
   function isNoSubmission(row) {
