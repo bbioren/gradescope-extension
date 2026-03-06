@@ -18,8 +18,10 @@
     };
   }
   let allAssignments = [];
-  let settings = { dropLowest: 0, excludePatterns: [] };
+  let settings = { dropLowest: 0, excludePatterns: [], equalWeight: false, customWeights: false, weightGroups: [] };
   let destroyed = false;
+  let settingsPanelOpen = false;
+  let breakdownOpen = false;
 
   function killIfInvalid() {
     if (destroyed) return true;
@@ -146,7 +148,7 @@
 
   function computeStats(assignments) {
     if (assignments.length === 0)
-      return { count: 0, weightedAvg: 0, simpleAvg: 0, totalEarned: 0, totalPossible: 0 };
+      return { count: 0, weightedAvg: 0, simpleAvg: 0, customAvg: null, totalEarned: 0, totalPossible: 0 };
 
     const totalEarned = assignments.reduce((s, a) => s + a.earned, 0);
     const totalPossible = assignments.reduce((s, a) => s + a.total, 0);
@@ -154,13 +156,57 @@
     const simpleAvg =
       assignments.reduce((s, a) => s + a.pct, 0) / assignments.length;
 
+    let customAvg = null;
+    if (settings.customWeights && settings.weightGroups && settings.weightGroups.length > 0) {
+      customAvg = computeCustomWeightedAvg(assignments);
+    }
+
     return {
       count: assignments.length,
       weightedAvg,
       simpleAvg,
+      customAvg,
       totalEarned,
       totalPossible,
     };
+  }
+
+  function computeCustomWeightedAvg(assignments) {
+    const groups = settings.weightGroups || [];
+    if (groups.length === 0) return null;
+
+    let totalWeight = 0;
+    let weightedSum = 0;
+    const matched = new Set();
+
+    for (const group of groups) {
+      const weight = parseFloat(group.weight) || 0;
+      const members = group.assignments || [];
+      if (members.length === 0 || weight === 0) continue;
+
+      const groupAssignments = assignments.filter((a) => members.includes(a.name));
+      if (groupAssignments.length === 0) continue;
+
+      const groupEarned = groupAssignments.reduce((s, a) => s + a.earned, 0);
+      const groupPossible = groupAssignments.reduce((s, a) => s + a.total, 0);
+      const groupPct = (groupEarned / groupPossible) * 100;
+      weightedSum += groupPct * (weight / 100);
+      totalWeight += weight;
+      groupAssignments.forEach((a) => matched.add(a.name));
+    }
+
+    const unmatched = assignments.filter((a) => !matched.has(a.name));
+    if (unmatched.length > 0 && totalWeight < 100) {
+      const remainingWeight = 100 - totalWeight;
+      const unmatchedEarned = unmatched.reduce((s, a) => s + a.earned, 0);
+      const unmatchedPossible = unmatched.reduce((s, a) => s + a.total, 0);
+      const unmatchedPct = (unmatchedEarned / unmatchedPossible) * 100;
+      weightedSum += unmatchedPct * (remainingWeight / 100);
+      totalWeight += remainingWeight;
+    }
+
+    if (totalWeight === 0) return null;
+    return (weightedSum / totalWeight) * 100;
   }
 
   function getLetterGrade(pct) {
@@ -195,6 +241,44 @@
     return settings.excludePatterns;
   }
 
+  function buildGroupsHTML(filtered) {
+    const groups = settings.weightGroups || [];
+    if (groups.length === 0) return "";
+
+    return groups.map(function(group, i) {
+      var assignedNames = {};
+      (group.assignments || []).forEach(function(n) { assignedNames[n] = true; });
+      var otherNames = {};
+      groups.forEach(function(g, gi) {
+        if (gi !== i) (g.assignments || []).forEach(function(n) { otherNames[n] = true; });
+      });
+      var available = filtered.filter(function(a) { return !assignedNames[a.name] && !otherNames[a.name]; });
+
+      var membersHTML = (group.assignments || []).map(function(name) {
+        return '<span class="gs-avg-weight-member" data-name="' + name.replace(/"/g, '&quot;') + '">'
+          + name + ' <button class="gs-avg-weight-member-remove">&times;</button></span>';
+      }).join("");
+
+      var optionsHTML = available.map(function(a) {
+        return '<option value="' + a.name.replace(/"/g, '&quot;') + '">' + a.name + ' (' + a.earned + '/' + a.total + ')</option>';
+      }).join("");
+
+      return '<div class="gs-avg-weight-group" data-group-index="' + i + '">'
+        + '<div class="gs-avg-weight-group-header">'
+        + '<input type="text" class="gs-avg-weight-group-name" value="' + (group.name || '').replace(/"/g, '&quot;') + '" placeholder="Group name (e.g. Homework)" />'
+        + '<input type="number" class="gs-avg-weight-group-pct" value="' + (group.weight || 0) + '" min="0" max="100" placeholder="%" />'
+        + '<span class="gs-avg-weight-cat-pct-sign">%</span>'
+        + '<button class="gs-avg-weight-group-remove">&times;</button>'
+        + '</div>'
+        + '<div class="gs-avg-weight-group-members">' + membersHTML + '</div>'
+        + '<select class="gs-avg-weight-group-select">'
+        + '<option value="">+ Add assignment to group...</option>'
+        + optionsHTML
+        + '</select>'
+        + '</div>';
+    }).join("");
+  }
+
   function renderBanner(stats, filtered) {
     let banner = document.getElementById(BANNER_ID);
     if (banner) banner.remove();
@@ -204,9 +288,12 @@
     banner = document.createElement("div");
     banner.id = BANNER_ID;
 
-    const color = stats.count > 0 ? getGradeColor(stats.weightedAvg) : "#64748b";
-    const letter = stats.count > 0 ? getLetterGrade(stats.weightedAvg) : "--";
-    const pctText = stats.count > 0 ? stats.weightedAvg.toFixed(1) + "%" : "--";
+    const displayAvg = settings.customWeights && stats.customAvg !== null
+      ? stats.customAvg
+      : settings.equalWeight ? stats.simpleAvg : stats.weightedAvg;
+    const color = stats.count > 0 ? getGradeColor(displayAvg) : "#64748b";
+    const letter = stats.count > 0 ? getLetterGrade(displayAvg) : "--";
+    const pctText = stats.count > 0 ? displayAvg.toFixed(1) + "%" : "--";
 
     const excludePatterns = getExcludePatterns();
     const totalExcluded = allAssignments.length - filtered.length - (settings.dropLowest || 0);
@@ -232,12 +319,18 @@
             <h3 class="gs-avg-title">Your Grade Average</h3>
             <div class="gs-avg-row">
               <span class="gs-avg-label">Weighted avg (by points):</span>
-              <span class="gs-avg-value" style="color:${color}">${stats.count > 0 ? stats.weightedAvg.toFixed(2) + "%" : "--"}</span>
+              <span class="gs-avg-value" ${!settings.equalWeight && !settings.customWeights ? 'style="color:' + color + '"' : ''}>${stats.count > 0 ? stats.weightedAvg.toFixed(2) + "%" : "--"}</span>
             </div>
             <div class="gs-avg-row">
-              <span class="gs-avg-label">Simple avg (per assignment):</span>
-              <span class="gs-avg-value">${stats.count > 0 ? stats.simpleAvg.toFixed(2) + "%" : "--"}</span>
+              <span class="gs-avg-label">Equal weight avg:</span>
+              <span class="gs-avg-value" ${settings.equalWeight && !settings.customWeights ? 'style="color:' + color + '"' : ''}>${stats.count > 0 ? stats.simpleAvg.toFixed(2) + "%" : "--"}</span>
             </div>
+            ${settings.customWeights && stats.customAvg !== null ? `
+            <div class="gs-avg-row">
+              <span class="gs-avg-label">Custom weighted avg:</span>
+              <span class="gs-avg-value" style="color:${color}">${stats.customAvg.toFixed(2)}%</span>
+            </div>
+            ` : ""}
             <div class="gs-avg-row">
               <span class="gs-avg-label">Total points:</span>
               <span class="gs-avg-value">${stats.totalEarned.toFixed(1)} / ${stats.totalPossible.toFixed(1)}</span>
@@ -254,6 +347,28 @@
         </div>
       </div>
       <div class="gs-avg-settings-panel" style="display:none">
+        <div class="gs-avg-settings-section">
+          <label class="gs-avg-settings-label">Weighting</label>
+          <div class="gs-avg-chips">
+            <button class="gs-avg-chip ${settings.equalWeight ? "gs-avg-chip--active" : ""}" id="gs-avg-equal-btn">
+              Weight assignments equally
+            </button>
+            <button class="gs-avg-chip ${settings.customWeights ? "gs-avg-chip--active" : ""}" id="gs-avg-custom-weights-btn">
+              Custom weights
+            </button>
+          </div>
+          <div class="gs-avg-weight-editor" style="display:${settings.customWeights ? 'block' : 'none'}">
+            <div class="gs-avg-weight-groups">
+              ${buildGroupsHTML(filtered)}
+            </div>
+            <button class="gs-avg-weight-add">+ Add group</button>
+            <div class="gs-avg-weight-total">
+              Total: ${(settings.weightGroups || []).reduce((s, g) => s + (parseFloat(g.weight) || 0), 0)}%
+              ${(settings.weightGroups || []).reduce((s, g) => s + (parseFloat(g.weight) || 0), 0) !== 100 ? '<span class="gs-avg-weight-warn">(should be 100%)</span>' : '<span class="gs-avg-weight-ok">\u2713</span>'}
+            </div>
+            <div class="gs-avg-weight-hint">Unassigned assignments get the remaining weight.</div>
+          </div>
+        </div>
         <div class="gs-avg-settings-section">
           <label class="gs-avg-settings-label">Drop lowest grades</label>
           <div class="gs-avg-drop-row">
@@ -316,20 +431,97 @@
 
     const toggle = banner.querySelector(".gs-avg-toggle");
     const breakdown = banner.querySelector(".gs-avg-breakdown");
-    toggle.addEventListener("click", () => {
-      const visible = breakdown.style.display !== "none";
-      breakdown.style.display = visible ? "none" : "block";
-      toggle.innerHTML = visible ? "&#9660;" : "&#9650;";
-      if (!visible) renderBreakdown(breakdown, filtered);
-    });
-
     const settingsBtn = banner.querySelector(".gs-avg-settings-btn");
     const settingsPanel = banner.querySelector(".gs-avg-settings-panel");
-    settingsBtn.addEventListener("click", () => {
-      const visible = settingsPanel.style.display !== "none";
-      settingsPanel.style.display = visible ? "none" : "block";
-      settingsBtn.classList.toggle("gs-avg-btn--active", !visible);
+
+    if (settingsPanelOpen) {
+      settingsPanel.style.display = "block";
+      settingsBtn.classList.add("gs-avg-btn--active");
+    }
+    if (breakdownOpen) {
+      breakdown.style.display = "block";
+      toggle.innerHTML = "&#9650;";
+      renderBreakdown(breakdown, filtered);
+    }
+
+    toggle.addEventListener("click", () => {
+      breakdownOpen = breakdown.style.display === "none";
+      breakdown.style.display = breakdownOpen ? "block" : "none";
+      toggle.innerHTML = breakdownOpen ? "&#9650;" : "&#9660;";
+      if (breakdownOpen) renderBreakdown(breakdown, filtered);
     });
+
+    settingsBtn.addEventListener("click", () => {
+      settingsPanelOpen = settingsPanel.style.display === "none";
+      settingsPanel.style.display = settingsPanelOpen ? "block" : "none";
+      settingsBtn.classList.toggle("gs-avg-btn--active", settingsPanelOpen);
+    });
+
+    banner.querySelector("#gs-avg-equal-btn").addEventListener("click", () => {
+      settings.equalWeight = !settings.equalWeight;
+      if (settings.equalWeight) settings.customWeights = false;
+      saveSettings();
+      recalculate();
+    });
+
+    banner.querySelector("#gs-avg-custom-weights-btn").addEventListener("click", () => {
+      settings.customWeights = !settings.customWeights;
+      if (settings.customWeights) settings.equalWeight = false;
+      saveSettings();
+      recalculate();
+    });
+
+    const weightEditor = banner.querySelector(".gs-avg-weight-editor");
+    if (weightEditor) {
+      banner.querySelector(".gs-avg-weight-add").addEventListener("click", () => {
+        if (!settings.weightGroups) settings.weightGroups = [];
+        settings.weightGroups.push({ name: "", weight: 0, assignments: [] });
+        saveSettings();
+        recalculate();
+      });
+
+      weightEditor.querySelectorAll(".gs-avg-weight-group").forEach((groupEl) => {
+        const idx = parseInt(groupEl.dataset.groupIndex);
+
+        groupEl.querySelector(".gs-avg-weight-group-name").addEventListener("change", (e) => {
+          settings.weightGroups[idx].name = e.target.value.trim();
+          saveSettings();
+        });
+
+        groupEl.querySelector(".gs-avg-weight-group-pct").addEventListener("change", (e) => {
+          settings.weightGroups[idx].weight = parseFloat(e.target.value) || 0;
+          saveSettings();
+          recalculate();
+        });
+
+        groupEl.querySelector(".gs-avg-weight-group-remove").addEventListener("click", () => {
+          settings.weightGroups.splice(idx, 1);
+          saveSettings();
+          recalculate();
+        });
+
+        groupEl.querySelector(".gs-avg-weight-group-select").addEventListener("change", (e) => {
+          const name = e.target.value;
+          if (!name) return;
+          if (!settings.weightGroups[idx].assignments) settings.weightGroups[idx].assignments = [];
+          if (!settings.weightGroups[idx].assignments.includes(name)) {
+            settings.weightGroups[idx].assignments.push(name);
+          }
+          saveSettings();
+          recalculate();
+        });
+
+        groupEl.querySelectorAll(".gs-avg-weight-member-remove").forEach((removeBtn) => {
+          removeBtn.addEventListener("click", (e) => {
+            const memberEl = e.target.closest(".gs-avg-weight-member");
+            const name = memberEl.dataset.name;
+            settings.weightGroups[idx].assignments = (settings.weightGroups[idx].assignments || []).filter((n) => n !== name);
+            saveSettings();
+            recalculate();
+          });
+        });
+      });
+    }
 
     banner.querySelectorAll(".gs-avg-drop-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
